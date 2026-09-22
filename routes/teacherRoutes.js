@@ -52,6 +52,7 @@ teacherRouter.patch(
 // public routes
 // get specified teacher
 teacherRouter.get("/:teacherId", auth, getSpecifiedTeacher);
+
 teacherRouter.patch(
   "/update/:teacherId",
   auth,

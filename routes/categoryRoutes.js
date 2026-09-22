@@ -13,7 +13,7 @@ import {
   deleteCategory,
   deleteImage,
   getCategories,
-  getCategory
+  getCategory,
 } from "../controllers/categoryController.js";
 
 const categoryRoute = express.Router();
@@ -37,9 +37,9 @@ categoryRoute.patch(
   updateCategory,
 );
 // get categories
-categoryRoute.get("/", auth, protectedRoute, getCategories);
+categoryRoute.get("/", auth, getCategories);
 // get category
-categoryRoute.get("/:categoryId", auth, protectedRoute, getCategory);
+categoryRoute.get("/:categoryId", auth, getCategory);
 // delete category
 categoryRoute.delete("/:categoryId", auth, protectedRoute, deleteCategory);
 // delete image

@@ -73,7 +73,7 @@ const courseRoute = express.Router();
 courseRoute.post(
   "/",
   auth,
-  protectedRoute,
+  protectedRoute(["owner","admin","manager","teacher"]),
   imageUpload.single("image"),
   validationMiddleware(courseSchema),
   newCourse,

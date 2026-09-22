@@ -13,11 +13,26 @@ import {
   getSubmission,
   updateSubmission,
   deleteSubmission,
+  getMyAllSubmissions,
+  getMyAssignmentSubmission,
 } from "../controllers/submissionAssignmentController.js";
 
 const submissionAssignmentRoute = express.Router();
 
 // submit assignment (students)
+
+// student's own submissions
+submissionAssignmentRoute.get(
+  "/my/:assignmentId",
+  auth,
+  getMyAssignmentSubmission,
+);
+submissionAssignmentRoute.get(
+  "/student/my-submissions",
+  auth,
+  getMyAllSubmissions,
+);
+
 submissionAssignmentRoute.post(
   "/:assignmentId",
   auth,
@@ -59,4 +74,3 @@ submissionAssignmentRoute.delete(
 );
 
 export default submissionAssignmentRoute;
-

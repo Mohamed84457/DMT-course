@@ -49,7 +49,7 @@ const courseSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["draft", "published", "archived"],
-      default: "draft",
+      default: "published",
     },
     educationLevel: {
       type: String,

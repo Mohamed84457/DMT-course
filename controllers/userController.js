@@ -1,4 +1,6 @@
+import crypto from "crypto";
 import { userModel } from "../models/User.model.js";
+import Teacher from "../models/Teacher.model.js";
 import { sanitizeUser } from "../utils/sanitizeUser.js";
 
 // Get all organization users (Protected: Owner, Admin, Manager)
@@ -107,6 +109,24 @@ const updateUserRole = async (req, res) => {
 
     user.role = rolesArray;
     await user.save();
+
+    // When promoted to teacher or instructor, create a Teacher document if one does not exist
+    if (rolesArray.includes("teacher") || rolesArray.includes("instructor")) {
+      const existingTeacher = await Teacher.findOne({ userId: user._id });
+      if (!existingTeacher) {
+        const employeeCode =
+          "TC-" + crypto.randomBytes(4).toString("hex").toUpperCase();
+        await Teacher.create({
+          userId: user._id,
+          employeeCode,
+          specialization: req.body?.specialization || "General",
+          qualification: req.body?.qualification || "Bachelor Degree",
+          experience: req.body?.experience !== undefined ? Number(req.body.experience) : 0,
+          bio: req.body?.bio || "",
+          salary: req.body?.salary !== undefined ? Number(req.body.salary) : 0,
+        });
+      }
+    }
 
     const updatedUser = sanitizeUser(user);
 

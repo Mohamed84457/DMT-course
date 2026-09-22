@@ -13,11 +13,22 @@ import {
   updateSubmission,
   degreeAnswer,
   deleteSubmission,
+  getMyQuizSubmission,
+  getMyAllQuizSubmissions,
 } from "../controllers/quizSubmissionController.js";
 
 const quizSubmissionsRouter = express.Router();
 
 // submit quiz
+
+// student's own quiz submissions
+quizSubmissionsRouter.get("/my/:quizId", auth, getMyQuizSubmission);
+quizSubmissionsRouter.get(
+  "/student/my-submissions",
+  auth,
+  getMyAllQuizSubmissions,
+);
+
 quizSubmissionsRouter.post(
   "/:quizId",
   auth,

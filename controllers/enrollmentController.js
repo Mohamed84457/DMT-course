@@ -616,35 +616,17 @@ const allEnrollments = async (req, res) => {
 const courseEnrollments = async (req, res) => {
   try {
     const { courseId } = req.params;
-    const { _id, role, organizationId } = req.user;
+    const { _id, role } = req.user;
 
     const {
       page = 1,
-      limit = 10,
+      limit = 50,
       paymentStatus,
       enrolledAt,
       status,
     } = req.query;
 
-    let filter = { organizationId };
-    if (paymentStatus) {
-      filter = { ...filter, paymentStatus };
-    }
-    if (status) {
-      filter = { ...filter, status };
-    }
-    if (enrolledAt) {
-      filter = { ...filter, enrolledAt };
-    }
-
-    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
-    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
-
-    const skip = (pageNum - 1) * limitNum;
-
-    const course = await courseModel.findOne({
-      _id: courseId,
-    });
+    const course = await courseModel.findById(courseId);
 
     if (!course) {
       return res.status(404).json({
@@ -652,8 +634,6 @@ const courseEnrollments = async (req, res) => {
         message: "course not found",
       });
     }
-
-    filter.courseId = courseId;
 
     const STAFF = ["owner", "admin", "manager"];
     const isStaff = STAFF.some((s) => role.includes(s));
@@ -672,27 +652,41 @@ const courseEnrollments = async (req, res) => {
       }
     }
 
+    let filter = { courseId };
+    if (paymentStatus) {
+      filter.paymentStatus = paymentStatus;
+    }
+    if (status) {
+      filter.status = status;
+    }
+    if (enrolledAt) {
+      filter.enrolledAt = enrolledAt;
+    }
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+
+    const skip = (pageNum - 1) * limitNum;
+
     const totalEnrollments = await enrollmentModel.countDocuments(filter);
 
     const enrollments = await enrollmentModel
       .find(filter)
       .populate({
-        path: "organizationId",
-      })
-      .populate({
         path: "studentId",
         populate: {
           path: "userId",
-          select:
-            "name email role organizationId isactive gender phone profileImage",
+          select: "name email role isactive gender phone profileImage",
         },
       })
+      .populate("courseId")
+      .sort({ enrolledAt: -1, createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
 
     return res.status(200).json({
       success: true,
-      message: "course enrollments fetched successfully",
+      message: "enrollments fetched successfully",
       count: enrollments.length,
       totalEnrollments,
       totalPages: Math.ceil(totalEnrollments / limitNum),
@@ -702,6 +696,7 @@ const courseEnrollments = async (req, res) => {
     });
   } catch (err) {
     console.log(err);
+
     return res.status(500).json({
       success: false,
       message: "internal server error",

@@ -9,7 +9,7 @@ import quizModel from "../models/Quiz.model.js";
 import { calculateScore } from "../utils/calculateScore.js";
 import { createNotification } from "../utils/createNotification.js";
 
-//submit quiz
+// submit quiz
 const submitQuiz = async (req, res) => {
   try {
     const { quizId } = req.params;
@@ -20,7 +20,11 @@ const submitQuiz = async (req, res) => {
       _id: quizId,
       organizationId,
       status: { $nin: ["closed", "draft"] },
-      dueDate: { $gte: new Date() },
+      $or: [
+        { dueDate: { $exists: false } },
+        { dueDate: null },
+        { dueDate: { $gte: new Date() } },
+      ],
     });
 
     if (!quiz) {
@@ -43,13 +47,13 @@ const submitQuiz = async (req, res) => {
     const isStudent = role.includes("student");
 
     if (isStudent) {
-      const student = await Student.findOne({
+      let student = await Student.findOne({
         userId: _id,
       });
       if (!student) {
-        return res.status(401).json({
-          success: false,
-          message: "not authorize",
+        student = await Student.create({
+          userId: _id,
+          organizationId,
         });
       }
       const isEnrollCourse = await enrollmentModel.findOne({
@@ -72,7 +76,7 @@ const submitQuiz = async (req, res) => {
       if (isSubmit) {
         return res.status(400).json({
           success: false,
-          message: "you already submit this quiz ",
+          message: "you already submit this quiz",
         });
       }
 
@@ -83,10 +87,10 @@ const submitQuiz = async (req, res) => {
         courseId: isEnrollCourse.courseId,
       };
 
-      const gradedAnswers = calculateScore(answers, quiz.questions);
+      const gradedAnswers = calculateScore(answers || [], quiz.questions || []);
 
       const quizScore = gradedAnswers.reduce(
-        (sum, a) => sum + a.pointsObtained,
+        (sum, a) => sum + (a.pointsObtained || 0),
         0,
       );
 
@@ -100,9 +104,8 @@ const submitQuiz = async (req, res) => {
         quizSubmissionData.totalScore = quizScore;
       }
 
-      quizSubmissionData.isPassed = quizScore >= quiz.passingMarks;
+      quizSubmissionData.isPassed = quizScore >= (quiz.passingMarks || 0);
       quizSubmissionData.submittedAt = new Date();
-
       quizSubmissionData.answers = gradedAnswers;
 
       const submit = await quizSubmissionModel.create(quizSubmissionData);
@@ -127,6 +130,7 @@ const submitQuiz = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "quiz submitted successfully",
+        submission: submit,
         submit,
       });
     }
@@ -138,7 +142,7 @@ const submitQuiz = async (req, res) => {
     console.log(err);
     return res.status(500).json({
       success: false,
-      messag: "internal server error",
+      message: "internal server error",
     });
   }
 };
@@ -148,14 +152,6 @@ const getQuizSubmissions = async (req, res) => {
   try {
     const { quizId } = req.params;
     const { _id, role, organizationId } = req.user;
-    const {
-      page = 1,
-      limit = 10,
-      isPassed,
-      bonusPoints,
-      submittedAt,
-      totalScore,
-    } = req.query;
 
     const quiz = await quizModel.findOne({
       _id: quizId,
@@ -185,57 +181,21 @@ const getQuizSubmissions = async (req, res) => {
       if (teacher._id.toString() !== quiz.teacherId.toString()) {
         return res.status(403).json({
           success: false,
-          message: "you can access quiz's submissions of your lessons ",
+          message: "you can only view submissions for your own quizzes",
         });
       }
     }
 
-    let filter = { organizationId, quizId };
-
-    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
-    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
-    const skip = (pageNum - 1) * limitNum;
-
-    if (isPassed) {
-      filter.isPassed = isPassed;
-    }
-    if (submittedAt) {
-      const submittedAtObj = new Date(submittedAt);
-      if (submittedAtObj) {
-        filter.submittedAt = { $gte: submittedAtObj };
-      }
-    }
-    if (totalScore) {
-      if (!isNaN(totalScore)) {
-        filter.totalScore = { $gte: Number(totalScore) };
-      }
-    }
-    if (bonusPoints) {
-      if (!isNaN(bonusPoints)) {
-        filter.bonusPoints = { $gte: Number(bonusPoints) };
-      }
-    }
-
-    const totalSubmissions = await quizSubmissionModel.countDocuments(filter);
-
     const submissions = await quizSubmissionModel
-      .find(filter)
-      .skip(skip)
-      .limit(limitNum)
-      .populate({
-        path: "studentId",
+      .find({
+        quizId,
+        organizationId,
       })
-      .sort({ createdAt: -1 })
-      .select("-answers");
+      .populate("studentId")
+      .populate("quizId");
 
     return res.status(200).json({
       success: true,
-      message: "quiz's submissions fetched successfully",
-      count: submissions.length,
-      totalPages: Math.ceil(totalSubmissions / limitNum),
-      totalSubmissions,
-      currentPage: pageNum,
-      limit: limitNum,
       submissions,
     });
   } catch (err) {
@@ -247,17 +207,21 @@ const getQuizSubmissions = async (req, res) => {
   }
 };
 
-// get quiz submission
+// get submission
 const getQuizSubmission = async (req, res) => {
   try {
     const { submissionId } = req.params;
     const { _id, role, organizationId } = req.user;
 
-    const quizSubmission = await quizSubmissionModel.findOne({
-      _id: submissionId,
-      organizationId,
-    });
-    if (!quizSubmission) {
+    const submission = await quizSubmissionModel
+      .findOne({
+        _id: submissionId,
+        organizationId,
+      })
+      .populate("studentId")
+      .populate("quizId");
+
+    if (!submission) {
       return res.status(404).json({
         success: false,
         message: "submission not found",
@@ -265,7 +229,7 @@ const getQuizSubmission = async (req, res) => {
     }
 
     const quiz = await quizModel.findOne({
-      _id: quizSubmission.quizId,
+      _id: submission.quizId?._id || submission.quizId,
       organizationId,
     });
     if (!quiz) {
@@ -292,15 +256,14 @@ const getQuizSubmission = async (req, res) => {
       if (teacher._id.toString() !== quiz.teacherId.toString()) {
         return res.status(403).json({
           success: false,
-          message: "you can access submission of your own quizzes",
+          message: "you can access only your quizzes",
         });
       }
     }
 
     return res.status(200).json({
       success: true,
-      message: "quiz's submission feteched successfully",
-      quizSubmission,
+      submission,
     });
   } catch (err) {
     console.log(err);
@@ -311,7 +274,7 @@ const getQuizSubmission = async (req, res) => {
   }
 };
 
-// update quiz submission
+// update submission
 const updateSubmission = async (req, res) => {
   try {
     const { submissionId } = req.params;
@@ -324,7 +287,7 @@ const updateSubmission = async (req, res) => {
     if (!submission) {
       return res.status(404).json({
         success: false,
-        message: "submission not found ",
+        message: "submission not found",
       });
     }
     const quiz = await quizModel.findOne({
@@ -334,7 +297,7 @@ const updateSubmission = async (req, res) => {
     if (!quiz) {
       return res.status(404).json({
         success: false,
-        message: "quiz not found ",
+        message: "quiz not found",
       });
     }
 
@@ -371,7 +334,7 @@ const updateSubmission = async (req, res) => {
     if (Object.keys(newSubmissionData).length < 1) {
       return res.status(400).json({
         success: false,
-        message: "nothing to update ",
+        message: "nothing to update",
       });
     }
 
@@ -399,16 +362,17 @@ const updateSubmission = async (req, res) => {
     });
   }
 };
+
 // degree answer
 const degreeAnswer = async (req, res) => {
   try {
     const { submissionId } = req.params;
     const { _id, role, organizationId } = req.user;
     const { pointsObtained, isCorrect, questionId } = req.body;
-    if (!pointsObtained || !isCorrect || !questionId) {
+    if (pointsObtained === undefined || isCorrect === undefined || !questionId) {
       return res.status(400).json({
         success: false,
-        message: "these field  required 'pointsObtained isCorrect questionId'",
+        message: "these fields required 'pointsObtained isCorrect questionId'",
       });
     }
 
@@ -430,7 +394,7 @@ const degreeAnswer = async (req, res) => {
     if (!quiz) {
       return res.status(404).json({
         success: false,
-        message: "quiz not found ",
+        message: "quiz not found",
       });
     }
     const STAFF = ["owner", "admin", "manager"];
@@ -465,7 +429,7 @@ const degreeAnswer = async (req, res) => {
       (total, answer) => total + Number(answer.pointsObtained || 0),
       0,
     );
-    const newTotalScore = newScore + Number(submission.bonusPoints);
+    const newTotalScore = newScore + Number(submission.bonusPoints || 0);
 
     const isPassed = newTotalScore >= quiz.passingMarks;
 
@@ -489,7 +453,7 @@ const degreeAnswer = async (req, res) => {
   }
 };
 
-// delet submission
+// delete submission
 const deleteSubmission = async (req, res) => {
   try {
     const { submissionId } = req.params;
@@ -502,7 +466,7 @@ const deleteSubmission = async (req, res) => {
     if (!submission) {
       return res.status(404).json({
         success: false,
-        message: "submission not found ",
+        message: "submission not found",
       });
     }
 
@@ -512,7 +476,8 @@ const deleteSubmission = async (req, res) => {
     });
     if (!quiz) {
       return res.status(404).json({
-        success: "quiz no longer exist ",
+        success: false,
+        message: "quiz no longer exist",
       });
     }
 
@@ -553,12 +518,74 @@ const deleteSubmission = async (req, res) => {
   }
 };
 
+// get student's own submission for a specific quiz
+const getMyQuizSubmission = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const { _id, organizationId } = req.user;
+
+    let student = await Student.findOne({ userId: _id });
+    if (!student) {
+      return res.status(200).json({
+        success: true,
+        submission: null,
+      });
+    }
+
+    const submission = await quizSubmissionModel.findOne({
+      quizId,
+      studentId: student._id,
+      organizationId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      submission: submission || null,
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      success: false,
+      message: "internal server error",
+    });
+  }
+};
+
+// get all quiz submissions by logged in student
+const getMyAllQuizSubmissions = async (req, res) => {
+  try {
+    const { _id, organizationId } = req.user;
+    const student = await Student.findOne({ userId: _id });
+    if (!student) {
+      return res.status(200).json({ success: true, submissions: [] });
+    }
+
+    const submissions = await quizSubmissionModel
+      .find({ studentId: student._id, organizationId })
+      .populate("quizId")
+      .populate("courseId")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      submissions: submissions || [],
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      success: false,
+      message: "internal server error",
+    });
+  }
+};
+
 export {
+  getMyQuizSubmission,
+  getMyAllQuizSubmissions,
   submitQuiz,
   getQuizSubmissions,
   getQuizSubmission,
   updateSubmission,
   degreeAnswer,
-  deleteSubmission
+  deleteSubmission,
 };
-

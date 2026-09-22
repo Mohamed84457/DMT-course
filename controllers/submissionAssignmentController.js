@@ -520,7 +520,71 @@ const deleteSubmission = async (req, res) => {
     });
   }
 };
+
+// get student's own submission for a specific assignment
+const getMyAssignmentSubmission = async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const { _id, organizationId } = req.user;
+
+    const student = await Student.findOne({ userId: _id });
+    if (!student) {
+      return res.status(200).json({
+        success: true,
+        submission: null,
+      });
+    }
+
+    const submission = await assignmentSubmissionModel.findOne({
+      assignmentId,
+      studentId: student._id,
+      organizationId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      submission: submission || null,
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      success: false,
+      message: "internal server error",
+    });
+  }
+};
+
+// get all submissions by logged in student
+const getMyAllSubmissions = async (req, res) => {
+  try {
+    const { _id, organizationId } = req.user;
+    const student = await Student.findOne({ userId: _id });
+    if (!student) {
+      return res.status(200).json({ success: true, submissions: [] });
+    }
+
+    const submissions = await assignmentSubmissionModel
+      .find({ studentId: student._id, organizationId })
+      .populate("assignmentId")
+      .populate("courseId")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      submissions: submissions || [],
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      success: false,
+      message: "internal server error",
+    });
+  }
+};
+
 export {
+  getMyAssignmentSubmission,
+  getMyAllSubmissions,
   submitAssignment,
   getSubmissionsAssignment,
   getSubmission,

@@ -8,12 +8,13 @@ import lessonModel from "../models/Lesson.model.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import Teacher from "../models/Teacher.model.js";
 
 // create new course
 const newCourse = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const { categoryId, teacherId } = req.body;
+    const { organizationId, _id } = req.user;
+    const { categoryId } = req.body;
 
     const newcourse = { ...req.body, organizationId };
 
@@ -24,12 +25,12 @@ const newCourse = async (req, res) => {
 
     const teacher = await teacherModel
       .findOne({
-        _id: teacherId,
+        userId: _id,
       })
       .populate("userId");
 
     const teacherExist =
-      teacher?.userId?.organizationId?.toString() === organizationId.toString();
+      teacher?.userId?.organizationId?.toString() === organizationId?.toString();
 
     if (!category || !teacherExist) {
       const __filename = fileURLToPath(import.meta.url);
@@ -57,7 +58,13 @@ const newCourse = async (req, res) => {
           message: "teacher not found",
         });
       }
+      return res.status(403).json({
+        success: false,
+        message: "teacher does not belong to this organization",
+      });
     }
+
+    newcourse.teacherId = teacher._id;
 
     if (req.file) {
       newcourse.thumbnail = `/uploads/${req.file.filename}`;
