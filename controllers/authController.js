@@ -77,13 +77,6 @@ const register = async (req, res) => {
       }
     }
 
-    const userObj = sanitizeUser(user);
-    res.status(201).json({
-      success: true,
-      message: "registration  successfully",
-      user: userObj,
-    });
-
     const url = `${process.env.CLIENT_URL}/verify-email/${verifyToken}`;
     await sendEmail({
       to: email,
@@ -110,6 +103,17 @@ const register = async (req, res) => {
     }).catch((emailErr) => {
       console.error("Failed to send verification email:", emailErr);
       // optionally: queue a retry, mark user.emailSendFailed = true, etc.
+      return res.status(400).json({
+        success: false,
+        message: "failed to send email ",
+      });
+    });
+
+    const userObj = sanitizeUser(user);
+    res.status(201).json({
+      success: true,
+      message: "registration  successfully",
+      user: userObj,
     });
   } catch (err) {
     return res.status(500).json({
