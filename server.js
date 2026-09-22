@@ -21,24 +21,33 @@ import quizSubmissionsRouter from "./routes/quizSubmissionRoutes.js";
 import healthServerRouter from "./routes/serverHealthRoutes.js";
 import notificationRouter from "./routes/notifizationRoutes.js";
 import paymentRouter from "./routes/paymentRoutes.js";
-// midleware
+// middleware
 import cors from "./middlewares/cors.js";
 
 const App = express();
 
-// Connect Database
-connectDB();
+App.set("trust proxy", 1);
+App.use(cors);
+App.use(express.json()); // to able to use body in request
+App.use(express.urlencoded({ extended: true }));
+App.use(express.static("public")); // to serve static files like images
+App.use(compression());
 
 App.use(apiLimiter);
 
-// Middlewares
-
-App.set("trust proxy", 1);
-App.use(cors);
-App.use(express.json()); //to able to use body in request
-App.use(express.urlencoded({ extended: true }));
-App.use(express.static("public")); //to serve static files like images
-App.use(compression());
+// Ensure Database Connection Middleware for Serverless & Local
+App.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error("Database connection error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Database connection failed",
+    });
+  }
+});
 
 // Swagger Documentation
 setupSwagger(App);
@@ -62,7 +71,19 @@ App.use("/api/payments", paymentRouter);
 App.use("/server", healthServerRouter);
 
 // Global Error Handling Middleware (must be after routes)
-
-App.listen(process.env.PORT || 3000, () => {
-  console.log(`Server running on http://localhost:${process.env.PORT || 3000}`);
+App.use((err, req, res, next) => {
+  console.error("Global Handler Error:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+  });
 });
+
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  App.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+export default App;
