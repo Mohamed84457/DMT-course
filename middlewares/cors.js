@@ -1,7 +1,7 @@
 import cors from "cors";
 
 const FRONTEND_URL = process.env.CLIENT_URL;
-const allowedOrigins = [FRONTEND_URL, "http://localhost:3000"];
+const allowedOrigins = [FRONTEND_URL, "http://localhost:3000","*"];
 
 const corsOptions = {
   origin: (origin, callback) => {
