@@ -64,7 +64,7 @@ enrollmentRoute.post("/admin", auth, protectedRoute, enrollStudent);
 enrollmentRoute.patch(
   "/:enrollmentId/status",
   auth,
-  protectedRoute,
+  protectedRoute(["owner","admin","manager","teacher"]),
   enrollmentStatus,
 );
 // chnage enrollment payment status
