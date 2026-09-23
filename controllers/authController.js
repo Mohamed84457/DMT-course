@@ -494,7 +494,7 @@ const getMe = async (req, res) => {
   const userToken = req.user;
 
   const user = await userModel.findOne({
-    _id: userToken.id,
+    _id: userToken._id,
   });
 
   if (!user) {
