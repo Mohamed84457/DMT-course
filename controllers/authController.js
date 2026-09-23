@@ -26,6 +26,7 @@ const register = async (req, res) => {
       parentPhone,
       address,
       school,
+      organizationId,
       educationLevel,
     } = req.body ?? {};
     // check if user exist
@@ -54,6 +55,7 @@ const register = async (req, res) => {
       role,
       gender,
       phone,
+      organizationId,
       verifyToken: hashedVerifyToken,
       expireVerifyToken,
     });
